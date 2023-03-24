@@ -57,7 +57,7 @@ def main():
     # from pycocotools.coco import COCO
     # from yolov3.dataset import DetectionDataset
     # dataset = DetectionDataset(
-    #     COCO("./data/coco/annotations/instances_5k.json"),
+    #     COCO("./dogcat/result.json"),
     #     img_root=None,
     #     img_size=None,
     #     transforms=None)

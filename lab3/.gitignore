@@ -12,5 +12,6 @@ data/*
 !data/generate_annotations.py
 !data/arial.ttf
 !data/street.jpg
+dogcat
 
 *.png
