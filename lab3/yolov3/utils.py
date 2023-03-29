@@ -1,3 +1,5 @@
+from typing import Union, List, Tuple, Optional
+
 import torch
 from PIL import ImageDraw, ImageFont
 from pycocotools.cocoeval import COCOeval
@@ -5,18 +7,22 @@ from torchvision.ops import batched_nms, box_convert
 from tqdm import tqdm
 
 
-def nms(predictions, conf_thre=0.7, nms_iou_threshold=0.45):
+def nms(
+    predictions: torch.Tensor,
+    conf_thre: float = 0.7,
+    nms_iou_threshold: float = 0.45
+) -> List[torch.Tensor]:
     """
     The implementation of batched non-maximum suppression algorithm based on
     torchvision.ops.batched_nms.
 
     Args:
-        predictions (torch.tensor): The raw output of yolo models. The unit of
-            bbox is in pixel.
-        conf_thre (float): confidence threshold of bounding boxes used in first
-            stage filtering.
-        nms_iou_threshold (float): IoU threshold used in
-            `torchvision.ops.batched_nms`.
+        predictions: A tensor with shape (B, K, D), where B is the batch size,
+            K is the number of predictions, D is the dimension of each
+            prediction. The last dimension should be in the format of
+            [x, y, w, h, conf, cls1, cls2, ...].
+        conf_thre: confidence threshold.
+        nms_threshold: non-maximum suppression threshold
     Returns:
         outputs (list of torch.tensor): A list of tensors with length equals to
             `predictions`. Each tensor is the nms results of corresponding
@@ -52,7 +58,12 @@ def nms(predictions, conf_thre=0.7, nms_iou_threshold=0.45):
     return outputs
 
 
-def draw_bbox(img, bbox, name=None, color="white"):
+def draw_bbox(
+    img: torch.Tensor,
+    bbox: torch.Tensor,
+    name: Union[str, None] = None,
+    color: Union[str, Tuple[int]] = "white",
+) -> None:
     draw = ImageDraw.Draw(img)
     x, y, w, h = bbox
     x1, y1 = (x - w / 2).long().item(), (y - h / 2).long().item()
@@ -64,7 +75,13 @@ def draw_bbox(img, bbox, name=None, color="white"):
     draw.rectangle([x1, y1, x2, y2], width=1, outline=tuple(color.numpy()))
 
 
-def draw_text(img, bbox, name, color="white", font_size=16):
+def draw_text(
+    img: torch.Tensor,
+    bbox: torch.Tensor,
+    name: Union[str, None] = None,
+    color: Union[str, Tuple[int]] = "white",
+    font_size: int = 16
+):
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype("./data/arial.ttf", font_size)
     x, y, w, h = bbox
@@ -76,13 +93,19 @@ def draw_text(img, bbox, name, color="white", font_size=16):
     draw.text((x, y), name, font=font, fill=tuple(color.numpy()))
 
 
-def evaluate(model, loader, conf_threshold, nms_threshold, device):
+def evaluate(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    conf_threshold: float,
+    nms_threshold: float,
+    device: torch.device
+) -> Tuple[float, float]:
     """Evaluate detection model by pycocotools.
 
     Args:
         model: detection model
-        loader (torch DataLoader): the dataset must be `DetectionDataset`.
-        conf_threshold: confidence threshold of bounding boxes
+        loader: the dataset must be `DetectionDataset`.
+        conf_threshold: confidence threshold
         nms_threshold: non-maximum suppression threshold
     Returns:
         AP@0.5:0.95 (float): calculated COCO AP for IoU=0.50:0.95

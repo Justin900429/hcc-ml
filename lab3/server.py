@@ -13,21 +13,23 @@ from yolov3.models.utils import parse_weights
 from yolov3.utils import nms
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+if torch.backends.mps.is_available():
+    device = torch.device('mps')
+elif torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
 
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # server
-parser.add_argument('--port', type=int, required=True)
+parser.add_argument('--port', type=int, default=8888)
 # yolo
-parser.add_argument('--model', choices=YOLOs.keys(), required=True,
-                    help='model name')
-parser.add_argument('--weights', type=str, required=True,
-                    help='path to weights file')
+parser.add_argument('--model', choices=YOLOs.keys(), default='yolov3')
+parser.add_argument('--weights', type=str, default='./weights/yolov3.weights')
 parser.add_argument('--n_classes', default=80, type=int,
                     help='nunmber of classes')
-# demo
 parser.add_argument('--img_size', type=int, default=416,
                     help='evaluation image size')
 parser.add_argument('--conf_threshold', type=float, default=0.5,

@@ -5,19 +5,17 @@ import time
 import cv2
 
 from yolov3.models import YOLOs
-from receivers import (
-    ImageReceiver,
-    LocalDetectionReceiver,
-    RemoteDetectionReceiver,
-    StoppableThread,
-    StateReceiver,
-)
+from tellosrc.base import StoppableThread, ResourceThread
+from tellosrc.receivers.image import ImageReceiver
+from tellosrc.receivers.state import StateReceiver
+from tellosrc.receivers.detection import DetectionReceiver
 
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # server port
-parser.add_argument('--port', type=int, default=None, help='server port')
+parser.add_argument('--port', type=int, default=8888, help='server port')
+parser.add_argument('--host', type=str, default='localhost', help='server port')
 # yolo
 parser.add_argument('--model', default='yolov3', choices=YOLOs.keys(),
                     help='model name')
@@ -35,8 +33,32 @@ parser.add_argument('--nms_threshold', type=float, default=0.45,
 args = parser.parse_args()
 
 
+class CommandTransmitter:
+    def __init__(self, ip='192.168.10.1', port=8889, local_port=56789):
+        self.ip = ip
+        self.port = port
+        self.sck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sck.bind(('0.0.0.0', local_port))
+
+    def send(self, command, timeout=1.0):
+        self.sck.sendto(command.encode(), (self.ip, self.port))
+        self.sck.settimeout(timeout)
+        try:
+            response, _ = self.sck.recvfrom(1024)
+            if len(response) == 0:
+                return None
+            return response.decode()
+        except socket.timeout:
+            return None
+
+
 class MovingPolicy(StoppableThread):
-    def __init__(self, detection_receiver, state_receiver, transmitter):
+    def __init__(
+        self,
+        detection_receiver: ResourceThread,
+        state_receiver: ResourceThread,
+        transmitter: CommandTransmitter,
+    ):
         super().__init__()
         self.detection_receiver = detection_receiver
         self.state_receiver = state_receiver
@@ -47,11 +69,11 @@ class MovingPolicy(StoppableThread):
         # print('[takeoff]: %s' % res)
         prev_id = None
         while not self.stopped():
-            id, _, bboxes, scores, labels, names = \
-                self.detection_receiver.get_result()
-            state = self.state_receiver.get_state()
-            if (id is None) or (id == prev_id) or (state is None):
+            id, detection = self.detection_receiver.get_result()
+            _, (state,) = self.state_receiver.get_result()
+            if (id is None) or (id == prev_id):
                 continue
+            (_, bboxes, scores, labels, names) = detection
             print('-' * 80)
             print("Battery: %d%%" % state['bat'])
             print("X Speed: %.1f" % state['vgx'])
@@ -72,25 +94,6 @@ class MovingPolicy(StoppableThread):
             # ---------------------------
         # res = transmitter.send('land')
         # print('[land]: %s' % res)
-
-
-class CommandTransmitter:
-    def __init__(self, ip='192.168.10.1', port=8889, local_port=56789):
-        self.ip = ip
-        self.port = port
-        self.sck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sck.bind(('0.0.0.0', local_port))
-
-    def send(self, command, timeout=1.0):
-        self.sck.sendto(command.encode(), (self.ip, self.port))
-        self.sck.settimeout(timeout)
-        try:
-            response, _ = self.sck.recvfrom(1024)
-            if len(response) == 0:
-                return None
-            return response.decode()
-        except socket.timeout:
-            return None
 
 
 if __name__ == '__main__':
@@ -117,47 +120,43 @@ if __name__ == '__main__':
             retry_counter += 1
             time.sleep(0.5)
 
-    # Receive State from Tello.
-    state_receiver = StateReceiver()
-    state_receiver.start()
-
-    # Receive Image from Tello.
-    image_receiver = ImageReceiver()
-    image_receiver.start()
-
-    # Detect objects in received image.
-    detection_receiver = LocalDetectionReceiver(
+    state_receiver = StateReceiver()            # Receive state from Tello.
+    image_receiver = ImageReceiver()            # Receive image from Tello.
+    detection_receiver = DetectionReceiver(     # Detect objects in received image.
         image_receiver,
-        args.img_size, args.conf_threshold, args.nms_threshold,
-        args.model, args.n_classes, args.weights)
-    # The other option is to use remote server as detection backend.
-    # detection_receiver = RemoteDetectionReceiver(
-    #     image_receiver,
-    #     args.img_size, args.conf_threshold, args.nms_threshold,
-    #     url='http://140.113.160.149:%d/api/yolov3' % args.port)
-    detection_receiver.start()
-
-    # The moving policy is executed in another thread.
-    moving_policy = MovingPolicy(
+        args.img_size,
+        args.conf_threshold,
+        args.nms_threshold,
+        url=f'http://{args.host}:{args.port}/api/yolov3')
+    moving_policy = MovingPolicy(               # Move Tello according to detection result.
         detection_receiver, state_receiver, transmitter)
-    moving_policy.start()
 
-    # Main thread is used to update the `cv2.imshow` window.
+    threads = [
+        state_receiver,
+        image_receiver,
+        detection_receiver,
+        moving_policy,
+    ]
+    for thread in threads:
+        thread.start()
+
     try:
+        # Main thread is used to update the `cv2.imshow` window.
         prev_id = None
         while True:
-            # id, img, _, _, _, _ = detection_receiver.get_result()
-            id, img = image_receiver.get_img()
+            id, (img, _, _, _, _) = detection_receiver.get_result()
+            # id, (img,) = image_receiver.get_result()
             if id is not None and id != prev_id:
                 cv2.imshow('Detection', img)
                 cv2.waitKey(1)
                 prev_id = id
     except KeyboardInterrupt as e:
         # Catch `ctrl+c` event
-        cv2.destroyAllWindows()     # Close `cv2.imshow` window.
+
+        # Close `cv2.imshow` window.
+        cv2.destroyAllWindows()
+
         # Stop all threads.
-        state_receiver.stop()
-        image_receiver.stop()
-        detection_receiver.stop()
-        moving_policy.stop()
+        for thread in threads:
+            thread.stop()
         raise e
