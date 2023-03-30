@@ -24,10 +24,12 @@ else:
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # server
-parser.add_argument('--port', type=int, default=8888)
+parser.add_argument('--port', type=int, default=8888, help='server port')
 # yolo
-parser.add_argument('--model', choices=YOLOs.keys(), default='yolov3')
-parser.add_argument('--weights', type=str, default='./weights/yolov3.weights')
+parser.add_argument('--model', choices=YOLOs.keys(), default='yolov3',
+                    help='model name')
+parser.add_argument('--weights', type=str, default='./weights/yolov3.weights',
+                    help='path to weights file')
 parser.add_argument('--n_classes', default=80, type=int,
                     help='nunmber of classes')
 parser.add_argument('--img_size', type=int, default=416,

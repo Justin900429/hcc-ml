@@ -58,3 +58,4 @@ if __name__ == '__main__':
         print('+ Label: %s, Conf: %.5f' % (name, score))
     raw = cv2.cvtColor(np.asarray(raw), cv2.COLOR_RGB2BGR)
     cv2.imwrite('testserver.png', raw)
+    print('Saved testserver.png')
