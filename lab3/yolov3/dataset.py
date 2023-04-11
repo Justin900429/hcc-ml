@@ -58,11 +58,23 @@ class DetectionDataset(Dataset):
         labels = []
         bboxes = []
         for anno in annotations:
+            # upper left corner, width, height
             x, y, w, h = anno['bbox']
+            # bounday check
+            x1, y1 = x, y               # upper left corner
+            x2, y2 = x + w, y + h       # lower right corner
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(orig_w, x2)
+            y2 = min(orig_h, y2)
+            # convert to center, width, height
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            w, h = x2 - x1, y2 - y1
+
             label = self.categoryid2label[anno['category_id']]
             if w > 1 and h > 1:
                 labels.append(label)
-                bboxes.append([x + w / 2, y + h / 2, w, h])
+                bboxes.append([cx, cy, w, h])
         labels = torch.tensor(labels).float()
         bboxes = torch.tensor(bboxes).float()
         if len(bboxes) == 0:
