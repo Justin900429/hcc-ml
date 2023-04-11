@@ -1,0 +1,10 @@
+pycocotools
+tqdm
+tensorboard
+tensorboardX
+opencv-python
+requests
+flask
+
+torch
+torchvision

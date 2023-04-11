@@ -16,14 +16,6 @@ parser = argparse.ArgumentParser(
 # server port
 parser.add_argument('--port', type=int, default=8888, help='server port')
 parser.add_argument('--host', type=str, default='localhost', help='server port')
-# yolo
-parser.add_argument('--model', default='yolov3', choices=YOLOs.keys(),
-                    help='model name')
-parser.add_argument('--weights', default="./weights/yolov3.weights", type=str,
-                    help='path to weights file')
-parser.add_argument('--n_classes', default=80, type=int,
-                    help='nunmber of classes')
-# demo
 parser.add_argument('--img_size', type=int, default=416,
                     help='evaluation image size')
 parser.add_argument('--conf_threshold', type=float, default=0.5,
@@ -90,7 +82,7 @@ class MovingPolicy(StoppableThread):
                     'size: (%.1f, %.1f)' % (w, h)]))
             prev_id = id
             # ---------------------------
-            # Add your moving policy here
+            # Add your routing policy here
             # ---------------------------
         # res = transmitter.send('land')
         # print('[land]: %s' % res)
