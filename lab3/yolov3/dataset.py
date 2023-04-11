@@ -50,8 +50,8 @@ class DetectionDataset(Dataset):
         img_path = os.path.join(
             self.img_root, os.path.basename(img_dict['file_name']))
         # use cv2 to load image. This can avoid the incorrect image format
-        # caused by PIL. Such confused images might be collected by the
-        # phone camera.
+        # caused by PIL. Such confused images may be collected by the phone
+        # cameras.
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         orig_h, orig_w = img.shape[:2]
@@ -69,8 +69,6 @@ class DetectionDataset(Dataset):
             # bounday check
             x1, y1 = x, y               # upper left corner
             x2, y2 = x + w, y + h       # lower right corner
-            assert x1 >= 0 and y1 >= 0 and x2 <= orig_w and y2 <= orig_h, \
-                f"({x1}, {y1}, {x2}, {y2}) is out of image size ({orig_w}, {orig_h}), {id}"
             x1 = max(0, x1)
             y1 = max(0, y1)
             x2 = min(orig_w, x2)
