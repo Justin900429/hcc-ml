@@ -1,4 +1,4 @@
-# HCC Machine Learning Course 2022 Spring
+# HCC Machine Learning Course 2024 Spring
 
 This repository contains the Machine Learning materials used for in-class practice in the Human Centric Computing Class (HCC) at National Yang Ming Chiao Tung University (NYCU).
 
