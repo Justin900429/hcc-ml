@@ -26,6 +26,7 @@ from tqdm import tqdm
 from utils.autoanchor import check_anchors
 from utils.datasets import create_dataloader
 from utils.general import (
+    attempt_download,
     check_dataset,
     check_file,
     check_img_size,
@@ -41,7 +42,6 @@ from utils.general import (
     set_logging,
     strip_optimizer,
 )
-from utils.google_utils import attempt_download
 from utils.loss import ComputeLoss, ComputeLossAuxOTA
 from utils.plots import plot_evolution, plot_images, plot_results
 from utils.torch_utils import (
@@ -340,7 +340,7 @@ def train(hyp, opt, device, tb_writer=None):
             # Anchors
             if not opt.noautoanchor:
                 check_anchors(dataset, model=model, thr=hyp["anchor_t"], imgsz=imgsz)
-            model.half().float()  # pre-reduce anchor precision
+            model.float()  # pre-reduce anchor precision
 
     # DDP mode
     if cuda and rank != -1:
@@ -376,7 +376,6 @@ def train(hyp, opt, device, tb_writer=None):
     maps = np.zeros(nc)  # mAP per class
     results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
     scheduler.last_epoch = start_epoch - 1  # do not move
-    scaler = amp.GradScaler(enabled=cuda)
     compute_loss_ota = ComputeLossAuxOTA(model)  # init loss class
     compute_loss = ComputeLoss(model)  # init loss class
     logger.info(
@@ -385,7 +384,7 @@ def train(hyp, opt, device, tb_writer=None):
         f"Logging results to {save_dir}\n"
         f"Starting training for {epochs} epochs..."
     )
-    torch.save(model, wdir / "init.pt")
+
     for epoch in range(
         start_epoch, epochs
     ):  # epoch ------------------------------------------------------------------
@@ -463,23 +462,21 @@ def train(hyp, opt, device, tb_writer=None):
                     imgs = F.interpolate(imgs, size=ns, mode="bilinear", align_corners=False)
 
             # Forward
-            with amp.autocast(enabled=cuda):
-                pred = model(imgs)  # forward
-                loss, loss_items = compute_loss_ota(
-                    pred, targets.to(device), imgs
-                )  # loss scaled by batch_size
-                if rank != -1:
-                    loss *= opt.world_size  # gradient averaged between devices in DDP mode
-                if opt.quad:
-                    loss *= 4.0
+            pred = model(imgs)  # forward
+            loss, loss_items = compute_loss_ota(
+                pred, targets.to(device), imgs
+            )  # loss scaled by batch_size
+            if rank != -1:
+                loss *= opt.world_size  # gradient averaged between devices in DDP mode
+            if opt.quad:
+                loss *= 4.0
 
             # Backward
-            scaler.scale(loss).backward()
+            loss.backward()
 
             # Optimize
             if ni % accumulate == 0:
-                scaler.step(optimizer)  # optimizer.step
-                scaler.update()
+                optimizer.step()
                 optimizer.zero_grad()
                 if ema:
                     ema.update(model)
@@ -541,11 +538,6 @@ def train(hyp, opt, device, tb_writer=None):
             # Write
             with open(results_file, "a") as f:
                 f.write(s + "%10.4g" * 7 % results + "\n")  # append metrics, val_loss
-            if len(opt.name) and opt.bucket:
-                os.system(
-                    "gsutil cp %s gs://%s/results/results%s.txt"
-                    % (results_file, opt.bucket, opt.name)
-                )
 
             # Log
             tags = [
@@ -592,9 +584,7 @@ def train(hyp, opt, device, tb_writer=None):
                     torch.save(ckpt, wdir / "best_{:03d}.pt".format(epoch))
                 if epoch == 0:
                     torch.save(ckpt, wdir / "epoch_{:03d}.pt".format(epoch))
-                elif ((epoch + 1) % 25) == 0:
-                    torch.save(ckpt, wdir / "epoch_{:03d}.pt".format(epoch))
-                elif epoch >= (epochs - 5):
+                elif ((epoch + 1) % 50) == 0:
                     torch.save(ckpt, wdir / "epoch_{:03d}.pt".format(epoch))
 
                 del ckpt
@@ -629,12 +619,9 @@ def train(hyp, opt, device, tb_writer=None):
                 )
 
         # Strip optimizers
-        final = best if best.exists() else last  # final model
         for f in last, best:
             if f.exists():
                 strip_optimizer(f)  # strip optimizers
-        if opt.bucket:
-            os.system(f"gsutil cp {final} gs://{opt.bucket}/weights")  # upload
     else:
         dist.destroy_process_group()
     torch.cuda.empty_cache()
@@ -662,7 +649,6 @@ if __name__ == "__main__":
     parser.add_argument("--notest", action="store_true", help="only test final epoch")
     parser.add_argument("--noautoanchor", action="store_true", help="disable autoanchor check")
     parser.add_argument("--evolve", action="store_true", help="evolve hyperparameters")
-    parser.add_argument("--bucket", type=str, default="", help="gsutil bucket")
     parser.add_argument(
         "--cache-images", action="store_true", help="cache images for faster training"
     )
@@ -685,22 +671,10 @@ if __name__ == "__main__":
     parser.add_argument("--project", default="logs/yolov7", help="save to project/name")
     parser.add_argument("--entity", default=None, help="W&B entity")
     parser.add_argument("--name", default="exp", help="save to project/name")
-    parser.add_argument(
-        "--exist-ok", action="store_true", help="existing project/name ok, do not increment"
-    )
     parser.add_argument("--quad", action="store_true", help="quad dataloader")
     parser.add_argument("--linear-lr", action="store_true", help="linear LR")
     parser.add_argument(
         "--label-smoothing", type=float, default=0.0, help="Label smoothing epsilon"
-    )
-    parser.add_argument(
-        "--upload_dataset", action="store_true", help="Upload dataset as W&B artifact table"
-    )
-    parser.add_argument(
-        "--bbox_interval",
-        type=int,
-        default=-1,
-        help="Set bounding-box image logging interval for W&B",
     )
     parser.add_argument(
         "--save_period", type=int, default=-1, help='Log model after every "save_period" epoch'
@@ -754,7 +728,7 @@ if __name__ == "__main__":
         )  # extend to 2 sizes (train, test)
         opt.name = "evolve" if opt.evolve else opt.name
         opt.save_dir = increment_path(
-            Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve
+            Path(opt.project) / opt.name, exist_ok=True | opt.evolve
         )  # increment run
 
     # DDP mode

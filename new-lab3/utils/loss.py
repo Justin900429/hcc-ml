@@ -801,7 +801,7 @@ class ComputeLossOTA:
 
             cost = pair_wise_cls_loss + 3.0 * pair_wise_iou_loss
 
-            matching_matrix = torch.zeros_like(cost, device="cpu")
+            matching_matrix = torch.zeros_like(cost)
 
             for gt_idx in range(num_gt):
                 _, pos_idx = torch.topk(cost[gt_idx], k=dynamic_ks[gt_idx].item(), largest=False)
@@ -1178,7 +1178,7 @@ class ComputeLossBinOTA:
 
             cost = pair_wise_cls_loss + 3.0 * pair_wise_iou_loss
 
-            matching_matrix = torch.zeros_like(cost, device="cpu")
+            matching_matrix = torch.zeros_like(cost)
 
             for gt_idx in range(num_gt):
                 _, pos_idx = torch.topk(cost[gt_idx], k=dynamic_ks[gt_idx].item(), largest=False)
