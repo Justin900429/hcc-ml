@@ -5,10 +5,8 @@ import cv2
 import numpy as np
 import requests
 import torch
-from PIL import Image
 from tellosrc.base import ResourceThread
 from tellosrc.receivers.image import ImageReceiver
-from torchvision.transforms.functional import to_pil_image
 from utils.plots import plot_one_box
 
 
