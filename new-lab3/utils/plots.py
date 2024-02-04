@@ -71,7 +71,7 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=3):
         cv2.putText(
             img,
             label,
-            (c1[0] + 5, c1[1] + 10),
+            (c1[0], c1[1] - 2),
             0,
             tl / 3,
             [225, 255, 255],
