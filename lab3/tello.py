@@ -3,34 +3,27 @@ import socket
 import time
 
 import cv2
-
-from yolov3.models import YOLOs
-from tellosrc.base import StoppableThread, ResourceThread
+from tellosrc.base import ResourceThread, StoppableThread
+from tellosrc.receivers.detection import DetectionReceiver
 from tellosrc.receivers.image import ImageReceiver
 from tellosrc.receivers.state import StateReceiver
-from tellosrc.receivers.detection import DetectionReceiver
 
-
-parser = argparse.ArgumentParser(
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # server port
-parser.add_argument('--port', type=int, default=8888, help='server port')
-parser.add_argument('--host', type=str, default='localhost', help='server port')
-parser.add_argument('--img_size', type=int, default=416,
-                    help='evaluation image size')
-parser.add_argument('--conf_threshold', type=float, default=0.5,
-                    help='confidence threshold')
-parser.add_argument('--nms_threshold', type=float, default=0.45,
-                    help='nms threshold')
+parser.add_argument("--port", type=int, default=8888, help="server port")
+parser.add_argument("--host", type=str, default="localhost", help="server port")
+parser.add_argument("--img_size", type=int, default=416, help="evaluation image size")
+parser.add_argument("--conf_threshold", type=float, default=0.5, help="confidence threshold")
+parser.add_argument("--nms_threshold", type=float, default=0.45, help="nms threshold")
 args = parser.parse_args()
 
 
 class CommandTransmitter:
-    def __init__(self, ip='192.168.10.1', port=8889, local_port=56789):
+    def __init__(self, ip="192.168.10.1", port=8889, local_port=56789):
         self.ip = ip
         self.port = port
         self.sck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sck.bind(('0.0.0.0', local_port))
+        self.sck.bind(("0.0.0.0", local_port))
 
     def send(self, command, timeout=1.0):
         self.sck.sendto(command.encode(), (self.ip, self.port))
@@ -66,20 +59,25 @@ class MovingPolicy(StoppableThread):
             if (id is None) or (id == prev_id):
                 continue
             (_, bboxes, scores, labels, names) = detection
-            print('-' * 80)
-            print("Battery: %d%%" % state['bat'])
-            print("X Speed: %.1f" % state['vgx'])
-            print("Y Speed: %.1f" % state['vgy'])
-            print("Z Speed: %.1f" % state['vgz'])
+            print("-" * 80)
+            print("Battery: %d%%" % state["bat"])
+            print("X Speed: %.1f" % state["vgx"])
+            print("Y Speed: %.1f" % state["vgy"])
+            print("Z Speed: %.1f" % state["vgz"])
             for bbox, score, label, name in zip(bboxes, scores, labels, names):
                 # center (x, y) and box size (w, h)
                 x, y, w, h = bbox
-                print(", ".join([
-                    'Label: %d' % int(label),
-                    'Name: %s' % name,
-                    'Conf: %.5f' % score,
-                    'center: (%.1f, %.1f)' % (x, y),
-                    'size: (%.1f, %.1f)' % (w, h)]))
+                print(
+                    ", ".join(
+                        [
+                            "Label: %d" % int(label),
+                            "Name: %s" % name,
+                            "Conf: %.5f" % score,
+                            "center: (%.1f, %.1f)" % (x, y),
+                            "size: (%.1f, %.1f)" % (w, h),
+                        ]
+                    )
+                )
             prev_id = id
             # ---------------------------
             # Add your routing policy here
@@ -88,40 +86,42 @@ class MovingPolicy(StoppableThread):
         # print('[land]: %s' % res)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     transmitter = CommandTransmitter()
 
     # Send start command and enable stream
     retry_counter = 1
     while True:
         try:
-            res = transmitter.send('command')
+            res = transmitter.send("command")
             if res is None:
                 raise RuntimeError("[command]: No response")
             if res.strip() != "ok":
-                raise RuntimeError('[command]: %s ' % res)
-            res = transmitter.send('streamon')
+                raise RuntimeError("[command]: %s " % res)
+            res = transmitter.send("streamon")
             if res is None:
                 raise RuntimeError("[streamon]: No response")
             if res.strip() != "ok":
-                raise RuntimeError('[streamon]: %s ' % res)
+                raise RuntimeError("[streamon]: %s " % res)
             break
         except RuntimeError as e:
             print(str(e))
-            print('Retry... %d' % retry_counter)
+            print("Retry... %d" % retry_counter)
             retry_counter += 1
             time.sleep(0.5)
 
-    state_receiver = StateReceiver()            # Receive state from Tello.
-    image_receiver = ImageReceiver()            # Receive image from Tello.
-    detection_receiver = DetectionReceiver(     # Detect objects in received image.
+    state_receiver = StateReceiver()  # Receive state from Tello.
+    image_receiver = ImageReceiver()  # Receive image from Tello.
+    detection_receiver = DetectionReceiver(  # Detect objects in received image.
         image_receiver,
         args.img_size,
         args.conf_threshold,
         args.nms_threshold,
-        url=f'http://{args.host}:{args.port}/api/yolov3')
-    moving_policy = MovingPolicy(               # Move Tello according to detection result.
-        detection_receiver, state_receiver, transmitter)
+        url=f"http://{args.host}:{args.port}/api/yolov7",
+    )
+    moving_policy = MovingPolicy(  # Move Tello according to detection result.
+        detection_receiver, state_receiver, transmitter
+    )
 
     threads = [
         state_receiver,
@@ -139,7 +139,7 @@ if __name__ == '__main__':
             id, (img, _, _, _, _) = detection_receiver.get_result()
             # id, (img,) = image_receiver.get_result()
             if id is not None and id != prev_id:
-                cv2.imshow('Detection', img)
+                cv2.imshow("Detection", img)
                 cv2.waitKey(1)
                 prev_id = id
     except KeyboardInterrupt as e:

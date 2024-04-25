@@ -1,6 +1,12 @@
 # !/bin/bash
 
-wget https://pjreddie.com/media/files/darknet53.conv.74
-wget https://pjreddie.com/media/files/yolov3.weights
-wget https://pjreddie.com/media/files/yolov3-spp.weights
-wget https://pjreddie.com/media/files/yolov3-tiny.weights
+wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7_training.pt
+mv yolov7_training.pt yolov7.pt
+wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-w6_training.pt
+mv yolov7-w6_training.pt yolov7-w6.pt
+# wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-e6_training.pt
+# mv yolov7-e6_training.pt yolov7-e6.pt
+# wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-d6_training.pt
+# mv yolov7-d6_training.pt yolov7-d6.pt
+# wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-e6e_training.pt
+# mv yolov7-e6e_training.pt yolov7-e6e.pt

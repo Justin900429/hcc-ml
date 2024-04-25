@@ -1,102 +1,166 @@
 import argparse
 
+import cv2
+import numpy as np
 import torch
-from PIL import Image
+from models.experimental import attempt_load
+from numpy import random
+from utils.datasets import letterbox
+from utils.general import check_img_size, non_max_suppression, scale_coords
+from utils.plots import plot_one_box
+from utils.torch_utils import select_device
 
-from yolov3.transforms import preprocess
-from yolov3.models import YOLOs
-from yolov3.models.utils import parse_weights
-from yolov3.utils import nms, draw_bbox, draw_text
+COLORS = [
+    [4, 170, 69],
+    [49, 115, 180],
+    [92, 189, 54],
+    [19, 80, 98],
+    [18, 192, 175],
+    [190, 232, 107],
+    [15, 240, 14],
+    [130, 208, 72],
+    [206, 154, 121],
+    [11, 69, 243],
+    [126, 112, 207],
+    [177, 44, 193],
+    [163, 222, 179],
+    [235, 222, 149],
+    [156, 93, 138],
+    [38, 47, 31],
+    [70, 210, 100],
+    [92, 96, 118],
+    [149, 81, 163],
+    [233, 201, 134],
+    [24, 108, 193],
+    [0, 118, 237],
+    [34, 156, 144],
+    [187, 106, 2],
+    [117, 156, 197],
+    [190, 12, 49],
+    [65, 57, 126],
+    [216, 30, 211],
+    [155, 96, 91],
+    [210, 49, 70],
+    [202, 66, 197],
+    [244, 63, 248],
+    [93, 150, 196],
+    [200, 63, 150],
+    [198, 112, 69],
+    [184, 85, 69],
+    [56, 225, 175],
+    [116, 235, 69],
+    [180, 167, 94],
+    [46, 202, 78],
+    [20, 81, 249],
+    [198, 43, 122],
+    [254, 60, 18],
+    [217, 93, 167],
+    [154, 236, 143],
+    [241, 134, 209],
+    [246, 43, 160],
+    [183, 110, 4],
+    [81, 38, 227],
+    [83, 30, 215],
+    [11, 125, 221],
+    [240, 242, 36],
+    [232, 230, 132],
+    [252, 195, 251],
+    [183, 85, 214],
+    [39, 205, 155],
+    [61, 246, 12],
+    [31, 122, 135],
+    [125, 28, 191],
+    [100, 30, 219],
+    [174, 187, 216],
+    [81, 155, 254],
+    [115, 163, 234],
+    [6, 203, 61],
+    [52, 86, 78],
+    [230, 82, 201],
+    [125, 224, 153],
+    [24, 9, 130],
+    [160, 132, 160],
+    [60, 89, 160],
+    [219, 63, 4],
+    [227, 188, 156],
+    [17, 222, 6],
+    [158, 252, 105],
+    [36, 42, 252],
+    [65, 42, 194],
+    [163, 197, 65],
+    [20, 32, 154],
+    [152, 90, 103],
+    [18, 69, 3],
+]
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def preprocess(img, img_size, stride):
+    img0 = cv2.imread(img)
+    img = letterbox(img0, img_size, stride=stride)[0]
+    img = img[:, :, ::-1].transpose(2, 0, 1)
+    img = np.ascontiguousarray(img) / 255.0
+    img = torch.from_numpy(img).unsqueeze(0)
+    return img.float(), img0
 
 
-parser = argparse.ArgumentParser(
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('--image', type=str, required=True)
-# yolo
-parser.add_argument('--model', default='yolov3', choices=YOLOs.keys(),
-                    help='model name')
-parser.add_argument('--weights', type=str, required=True,
-                    help='path to weights file')
-parser.add_argument('--n_classes', default=80, type=int,
-                    help='nunmber of classes')
-# demo
-parser.add_argument('--img_size', type=int, default=416,
-                    help='evaluation image size')
-parser.add_argument('--conf_threshold', type=float, default=0.5,
-                    help='confidence threshold')
-parser.add_argument('--nms_threshold', type=float, default=0.45,
-                    help='nms threshold')
-args = parser.parse_args()
+def detect():
+    global COLORS
+    source, imgsz, weights = opt.image, opt.img_size, opt.weights
 
+    # Initialize
+    device = select_device(opt.device)
 
-label2name = [
-    'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train',
-    'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign',
-    'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
-    'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag',
-    'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite',
-    'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
-    'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon',
-    'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
-    'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant',
-    'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
-    'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
-    'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
-    'hair drier', 'toothbrush']
+    # Load model
+    model = attempt_load(weights, map_location=device)
+    stride = int(model.stride.max())
+    imgsz = check_img_size(imgsz, s=stride)
 
-label2color = torch.randint(
-    0, 256, size=(len(label2name), 3),
-    generator=torch.Generator().manual_seed(1))
+    # Get names and colors
+    names = model.module.names if hasattr(model, "module") else model.names
+    if len(names) >= len(COLORS):
+        COLORS += [
+            [random.randint(0, 255) for _ in range(3)] for _ in range(len(names) - len(COLORS))
+        ]
 
-
-def main():
-    # The class names and colors can be obtained from dataset.
-    # from pycocotools.coco import COCO
-    # from yolov3.dataset import DetectionDataset
-    # dataset = DetectionDataset(
-    #     COCO("./dogcat/result.json"),
-    #     img_root=None,
-    #     img_size=None,
-    #     transforms=None)
-    # label2name = dataset.label2name
-    # label2color = dataset.label2color
-
-    img = Image.open(args.image).convert('RGB')
-    orig_size = torch.tensor([img.size[1], img.size[0]]).long()
-    img, _ = preprocess(img)
-    img = img.unsqueeze(0)
-
-    # Initiate model
-    model = YOLOs[args.model](args.n_classes).to(device)
-    if args.weights.endswith('.pt'):
-        ckpt = torch.load(args.weights)
-        model.load_state_dict(ckpt['model'])
-    else:
-        parse_weights(model, args.weights)
-    model.eval()
-
+    # Load image and run inference
+    img, im0 = preprocess(source, imgsz, stride)
+    img = img.to(device)
     with torch.no_grad():
-        img, orig_size = img.to(device), orig_size.to(device)
-        bboxes = model(img)
-        bboxes = nms(bboxes, args.conf_threshold, args.nms_threshold)[0]
+        pred = model(img, augment=False)[0]
 
-    img = Image.open(args.image)
-    if len(bboxes):
-        bboxes, scores, labels = torch.split(bboxes, [4, 1, 1], dim=1)
-        bboxes = preprocess.revert(bboxes, orig_size, args.img_size)
-        for bbox, score, label in zip(bboxes, scores, labels):
-            name = label2name[int(label)]
-            color = label2color[int(label)]
-            draw_bbox(img, bbox, name, color)
-            draw_text(img, bbox, name, color)
-            print('+ Label: %s, Conf: %.5f' % (name, score))
-    else:
-        print("No Objects Deteted!!")
-    img.save("demo.png")
+    # Apply NMS
+    pred = non_max_suppression(pred, opt.conf_threshold, opt.nms_threshold, agnostic=True)
+
+    # Process detections
+    for det in pred:  # detections per image
+        if len(det):
+            # Rescale boxes from img_size to im0 size
+            det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+
+            # Write results
+            for *xyxy, conf, cls in reversed(det):
+                label = f"{names[int(cls)]}"
+                plot_one_box(
+                    xyxy,
+                    im0,
+                    label=label,
+                    color=COLORS[int(cls)],
+                    line_thickness=1,
+                )
+
+    # Save results (image with detections)
+    cv2.imwrite("demo.png", im0)
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--image", type=str, required=True, help="source")
+    parser.add_argument("--weights", nargs="+", type=str, required=True, help="model.pt path(s)")
+    parser.add_argument("--img_size", type=int, default=640, help="inference size (pixels)")
+    parser.add_argument(
+        "--conf_threshold", type=float, default=0.55, help="object confidence threshold"
+    )
+    parser.add_argument("--nms_threshold", type=float, default=0.4, help="IOU threshold for NMS")
+    parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
+    opt = parser.parse_args()
+    detect()
