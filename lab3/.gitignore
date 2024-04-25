@@ -269,3 +269,4 @@ deploy
 *.pt
 dogcat
 !data/stree.jpg
+!figure/**
