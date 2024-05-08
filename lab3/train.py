@@ -21,7 +21,7 @@ from models.experimental import attempt_load
 from models.yolo import Model
 from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from utils.autoanchor import check_anchors
 from utils.datasets import create_dataloader
@@ -547,7 +547,7 @@ def train(hyp, opt, device, tb_writer=None):
                 "metrics/precision",
                 "metrics/recall",
                 "metrics/mAP_0.5",
-                "metrics/mAP_0.5:0.95",
+                "metrics/mAP_0.5_0.95",
                 "val/box_loss",
                 "val/obj_loss",
                 "val/cls_loss",  # val loss
