@@ -11,7 +11,7 @@ from utils.plots import plot_one_box
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--port", type=int, default=8888, help="server port")
-    parser.add_argument("--host", type=str, default="localhost")
+    parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--img", type=str, default="./data/street.jpg")
     parser.add_argument("--img_size", type=int, default=640)
     args = parser.parse_args()

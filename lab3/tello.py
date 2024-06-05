@@ -11,7 +11,7 @@ from tellosrc.receivers.state import StateReceiver
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 # server port
 parser.add_argument("--port", type=int, default=8888, help="server port")
-parser.add_argument("--host", type=str, default="localhost", help="server port")
+parser.add_argument("--host", type=str, default="127.0.0.1", help="server port")
 parser.add_argument("--img_size", type=int, default=416, help="evaluation image size")
 parser.add_argument("--conf_threshold", type=float, default=0.5, help="confidence threshold")
 parser.add_argument("--nms_threshold", type=float, default=0.45, help="nms threshold")
