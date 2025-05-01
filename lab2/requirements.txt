@@ -3,6 +3,7 @@ tensorboard
 tqdm
 gdown
 pandas
+numpy==1.26.2
 
 --find-links https://download.pytorch.org/whl/cu121
 torch==2.2.2
