@@ -4,6 +4,6 @@ tqdm
 gdown
 pandas
 
---find-links https://download.pytorch.org/whl/cu116/torch_stable.html
-torch==1.12.1+cu116
-torchvision==0.13.1+cu116
+--find-links https://download.pytorch.org/whl/cu121
+torch==2.2.2
+torchvision==0.17.2
