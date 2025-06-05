@@ -1,0 +1,6 @@
+tyro==0.9.24
+ultralytics==8.3.150
+numpy==1.26.2
+--find-links https://download.pytorch.org/whl/cu121
+torch==2.2.2
+torchvision==0.17.2

@@ -1,0 +1,8 @@
+path: ./dataset  # keep as is
+train: images    # keep as is
+val: images      # keep as is
+
+# Update these labels to match your classes
+names:
+  0: cat
+  1: dog
