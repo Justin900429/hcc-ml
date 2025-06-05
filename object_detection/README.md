@@ -3,6 +3,8 @@
 > [!CAUTION]
 > This tutorial focuses on model training. For data labeling instructions, please check lab3.
 
+To ensure you have the latest tutorial materials, please run `git pull` in the parent directory. If you encounter any issues during the pull, please contact the TA and include the error message.
+
 ## 🛠️ Setup Environment
 
 ```shell
