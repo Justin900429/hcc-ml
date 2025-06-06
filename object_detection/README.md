@@ -101,3 +101,41 @@ python predict.py \
 
 > [!TIP]
 > You can adjust `conf_threshold` and `nms_threshold` as covered in lab3.
+
+## 🤖 How to Use the Model
+
+It's easy to use the model in your own code. You can directly import the model and load the weights.
+
+```python
+from ultralytics import YOLO
+
+# Load weights from the training results
+model = YOLO("runs/train/weights/best.pt")
+
+# Predict the model with an image. You can also alter the confidence threshold and nms threshold
+results = model.predict("dataset/images/4d8f0341-c1.jpg", conf=0.25, iou=0.7)
+```
+
+Since in your final project, you will obtain an image from the camera, you can use the following code to predict the model with the image.
+
+```python
+image: np.ndarray = ...  # image in numpy array format
+
+# Predict the model with the image
+results = model.predict(image, conf=0.25, iou=0.7)
+```
+
+The results is a list of `Detection` objects. You can get the bounding box, confidence, and class name from the `Detection` object. As we only predict one image, the list will only have one element. You can extract the information from the `Detection` object.
+
+```python
+detection = results[0]  # fetch the first element of the list
+
+# Get the bounding box, confidence, and class name
+bbox = detection.xyxy[0]        # bounding box coordinates [x1, y1, x2, y2]
+confidence = detection.conf     # confidence score
+class_name = detection.names[int(detection.cls)]  # predicted class name
+print(f"Bounding box: {bbox}, Confidence: {confidence}, Class: {class_name}")
+```
+
+> [!TIP]
+> The bounding box coordinates are in the format [x1, y1, x2, y2] where (x1, y1) is the top-left corner and (x2, y2) is the bottom-right corner of the box.
